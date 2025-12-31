@@ -344,7 +344,8 @@ def start_cline_server_if_needed(
     else:
         # Use --yes to auto-confirm tsx installation
         cmd = "npx --yes tsx scripts/test-standalone-core-api-server.ts"
-    logf = open(log_path, "w")
+    # Open log file in append mode so we can read it later if needed
+    logf = open(log_path, "a+")
     print(f"[INFO] Starting standalone server; log: {log_path}", file=sys.stderr)
     print(f"[INFO] Command: {cmd}", file=sys.stderr)
     print(f"[INFO] Working directory: {cline_repo}", file=sys.stderr)
@@ -356,9 +357,18 @@ def start_cline_server_if_needed(
     time.sleep(2)  # Give process a moment to start
     if proc.poll() is not None:
         # Process already exited, read log to see why
-        logf.flush()
-        logf.seek(0)
-        log_content = logf.read()
+        try:
+            logf.flush()
+            logf.seek(0)
+            log_content = logf.read()
+            logf.close()
+        except Exception as e:
+            # If we can't read the log file, try reading it directly from disk
+            try:
+                with open(log_path, "r") as f:
+                    log_content = f.read()
+            except Exception:
+                log_content = f"Could not read log file: {e}"
         raise RuntimeError(
             f"Server process exited immediately with code {proc.returncode}. "
             f"Log: {log_content[-1000:]}"  # Last 1000 chars
