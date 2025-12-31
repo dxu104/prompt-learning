@@ -22,7 +22,13 @@ import random
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from cline_helpers import run_cline_for_instance
+from container_helpers import docker_image_exists
 from constants import CLINE_REPO_PATH, MATERIALIZED_REPOS_PATH
+
+
+class ImageNotFoundError(Exception):
+    """Raised when a Docker image is not found."""
+    pass
 
 cline_repo = Path(CLINE_REPO_PATH)
 workspaces_root = Path(MATERIALIZED_REPOS_PATH)
@@ -31,9 +37,17 @@ workspaces_root = Path(MATERIALIZED_REPOS_PATH)
 def act_one(instance: dict, idx: int, ruleset: str) -> tuple[str, Path]:
     """
     Allocates ports for the Cline server, runs Cline for one instance of SWE Bench, and returns the path to the patch Cline generated.
+    
+    Raises:
+        ImageNotFoundError: If the Docker image for this instance does not exist.
     """
     instance_id = instance["instance_id"]
     image_tag = make_test_spec(instance).instance_image_key
+
+    # Check if Docker image exists before proceeding
+    if not docker_image_exists(image_tag):
+        print(f"[SKIP] Docker image not found for instance {instance_id}: {image_tag}")
+        raise ImageNotFoundError(f"Docker image not found: {image_tag}")
 
     # unique ports per job (avoid clashes)
     base = 27000 + idx * 10
@@ -100,13 +114,36 @@ def run_act(
         selected_ids = [inst["instance_id"] for inst in dataset]
 
     # Run Cline ACT across instances in parallel -> collect predictions
+    skipped_instances = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = {
             ex.submit(act_one, inst, i, ruleset): inst for i, inst in enumerate(dataset)
         }
         for f in as_completed(futures):
-            iid, p = f.result()
-            predictions_by_id[iid] = p
+            inst = futures[f]
+            try:
+                iid, p = f.result()
+                predictions_by_id[iid] = p
+            except ImageNotFoundError as e:
+                skipped_instances.append(inst["instance_id"])
+                print(f"[SKIP] Skipping instance {inst['instance_id']}: {e}")
+            except Exception as e:
+                print(f"[ERROR] Failed to process instance {inst['instance_id']}: {e}")
+                skipped_instances.append(inst["instance_id"])
+    
+    if skipped_instances:
+        print(f"\n[INFO] Skipped {len(skipped_instances)} instances due to missing Docker images:")
+        for iid in skipped_instances:
+            print(f"  - {iid}")
+        print(f"[INFO] Proceeding with {len(predictions_by_id)} instances that have Docker images.\n")
+    
+    # If all instances were skipped, return empty DataFrame
+    if not predictions_by_id:
+        print("[WARNING] All instances were skipped due to missing Docker images. Returning empty results.")
+        return pd.DataFrame(columns=[
+            "instance_id", "problem_statement", "ground_truth_patch", 
+            "test_patch", "coding_agent_patch", "pass_or_fail"
+        ])
 
     # Combine predictions into one JSONL
     combined_preds = Path(os.getenv("TMPDIR", "/tmp")).joinpath(
@@ -156,7 +193,12 @@ def run_act(
 
     by_id = {inst["instance_id"]: inst for inst in dataset}
     rows: list[dict] = []
-    for iid in selected_ids:
+    # Only process instances that were successfully processed (not skipped)
+    # Only include instances that have predictions (i.e., were not skipped)
+    processed_ids = [iid for iid in selected_ids if iid in predictions_by_id]
+    for iid in processed_ids:
+        if iid not in by_id:
+            continue
         inst = by_id[iid]
         cline_patch = ""
         pred_path = predictions_by_id.get(iid)

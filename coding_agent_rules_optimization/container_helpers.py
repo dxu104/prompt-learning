@@ -32,6 +32,29 @@ def container_name_for(instance_id: str) -> str:
     return f"sweb_{instance_id.lower()}"
 
 
+def docker_image_exists(image_tag: str) -> bool:
+    """
+    Check if a Docker image exists locally.
+    
+    Args:
+        image_tag: The Docker image tag to check (e.g., "sweb.eval.x86_64.instance_id:latest")
+    
+    Returns:
+        True if the image exists, False otherwise
+    """
+    try:
+        result = subprocess.run(
+            f"docker image inspect {image_tag}",
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, Exception):
+        return False
+
+
 def start_bound_container(
     image_tag: str, instance_id: str, workspace_dir: Path
 ) -> None:
