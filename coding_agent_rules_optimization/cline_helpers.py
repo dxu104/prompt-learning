@@ -345,12 +345,25 @@ def start_cline_server_if_needed(
         # Use --yes to auto-confirm tsx installation
         cmd = "npx --yes tsx scripts/test-standalone-core-api-server.ts"
     logf = open(log_path, "w")
+    print(f"[INFO] Starting standalone server; log: {log_path}", file=sys.stderr)
+    print(f"[INFO] Command: {cmd}", file=sys.stderr)
+    print(f"[INFO] Working directory: {cline_repo}", file=sys.stderr)
     proc = subprocess.Popen(
         cmd.split(), cwd=str(cline_repo), env=env, stdout=logf, stderr=subprocess.STDOUT
     )
     # Give server more time to start (especially on slower systems)
+    # Also check if process is still running
+    time.sleep(2)  # Give process a moment to start
+    if proc.poll() is not None:
+        # Process already exited, read log to see why
+        logf.flush()
+        logf.seek(0)
+        log_content = logf.read()
+        raise RuntimeError(
+            f"Server process exited immediately with code {proc.returncode}. "
+            f"Log: {log_content[-1000:]}"  # Last 1000 chars
+        )
     wait_for_grpc_ready(host, proto_port, timeout_s=120)
-    print(f"[INFO] Starting standalone server; log: {log_path}", file=sys.stderr)
     try:
         logf.flush()
     except Exception:
