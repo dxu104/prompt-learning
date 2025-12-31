@@ -63,39 +63,60 @@ def main():
 
         test_df.to_csv(f"act_results/test_results_{loop}.csv", index=False)
 
-        train_acc = sum(train_df["pass_or_fail"] == "pass") / len(train_df)
-        test_acc = sum(test_df["pass_or_fail"] == "pass") / len(test_df)
+        # Check if DataFrames are empty before calculating accuracy
+        if len(train_df) == 0:
+            print("[WARNING] Train DataFrame is empty. No instances were successfully processed.")
+            train_acc = 0.0
+        else:
+            train_acc = sum(train_df["pass_or_fail"] == "pass") / len(train_df)
+        
+        if len(test_df) == 0:
+            print("[WARNING] Test DataFrame is empty. No instances were successfully processed.")
+            test_acc = 0.0
+        else:
+            test_acc = sum(test_df["pass_or_fail"] == "pass") / len(test_df)
+        
         print(f"Train Accuracy: {train_acc}")
         print(f"Test Accuracy: {test_acc}")
 
-        subprocess.run(
-            [
-                "/opt/anaconda3/envs/cline/bin/python3",
-                "-m",
-                "pip",
-                "install",
-                "--upgrade",
-                "arize-phoenix",
-                "wrapt",
-            ]
-        )
-        evaluated_train_results = evaluate_results(train_df)
-        evaluated_train_results.to_csv(
-            f"act_results/train_results_{loop}.csv", index=False
-        )
+        # Only evaluate if we have training data
+        if len(train_df) == 0:
+            print("[WARNING] Skipping evaluation: no training data available")
+            evaluated_train_results = pd.DataFrame()
+        else:
+            subprocess.run(
+                [
+                    "/opt/anaconda3/envs/cline/bin/python3",
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    "arize-phoenix",
+                    "wrapt",
+                ]
+            )
+            evaluated_train_results = evaluate_results(train_df)
+            evaluated_train_results.to_csv(
+                f"act_results/train_results_{loop}.csv", index=False
+            )
 
-        pl_optimizer = PromptLearningOptimizer(
-            prompt=CLINE_PROMPT,
-            model_choice="gpt-5",
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-        )
-        ruleset = pl_optimizer.optimize(
-            dataset=evaluated_train_results,
-            output_column="cline_patch",
-            feedback_columns=["correctness", "explanation"],
-            ruleset=ruleset,
-            context_size_k=400000,
-        )
+        # Only optimize if we have evaluated results
+        if len(evaluated_train_results) == 0:
+            print("[WARNING] Skipping optimization: no evaluated training results available")
+            print("[INFO] Keeping existing ruleset or using empty ruleset")
+        else:
+            pl_optimizer = PromptLearningOptimizer(
+                prompt=CLINE_PROMPT,
+                model_choice="gpt-5",
+                openai_api_key=os.getenv("OPENAI_API_KEY"),
+            )
+            ruleset = pl_optimizer.optimize(
+                dataset=evaluated_train_results,
+                output_column="cline_patch",
+                feedback_columns=["correctness", "explanation"],
+                ruleset=ruleset,
+                context_size_k=400000,
+            )
         with open(f"act_rulesets/ruleset_{loop}.txt", "w") as f:
             f.write(f"train_accuracy: {train_acc}")
             f.write(f"training_examples_used: {len(evaluated_train_results)}")
