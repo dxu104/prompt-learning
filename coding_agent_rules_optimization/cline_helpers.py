@@ -324,7 +324,12 @@ def start_cline_server_if_needed(
     log_path = Path(os.getenv("TMPDIR", "/tmp")).joinpath(
         f"cline-python-server-{proto_port}.log"
     )
-    cmd = "npx tsx scripts/test-standalone-core-api-server.ts"
+    # Use npx with --yes flag to auto-confirm package installation, or use tsx directly if available
+    if shutil_which("tsx") is not None:
+        cmd = "tsx scripts/test-standalone-core-api-server.ts"
+    else:
+        # Use --yes to auto-confirm tsx installation
+        cmd = "npx --yes tsx scripts/test-standalone-core-api-server.ts"
     logf = open(log_path, "w")
     proc = subprocess.Popen(
         cmd.split(), cwd=str(cline_repo), env=env, stdout=logf, stderr=subprocess.STDOUT
