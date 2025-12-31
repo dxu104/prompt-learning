@@ -23,11 +23,23 @@ echo ""
 echo "2. Checking npx and tsx..."
 if command -v npx &> /dev/null; then
     echo "   ✅ npx installed"
-    if npx tsx --version &> /dev/null; then
-        echo "   ✅ tsx available"
+    # Check if tsx is installed globally first (faster)
+    if command -v tsx &> /dev/null; then
+        TSX_VERSION=$(tsx --version 2>/dev/null || echo "installed")
+        echo "   ✅ tsx installed globally ($TSX_VERSION)"
     else
-        echo "   ❌ tsx not available, run: npm install -g tsx"
-        ERRORS=$((ERRORS + 1))
+        # Try npx with timeout if available, otherwise skip (npx will download when needed)
+        if command -v timeout &> /dev/null; then
+            if timeout 3 npx tsx --version &> /dev/null 2>&1; then
+                echo "   ✅ tsx available via npx"
+            else
+                echo "   ⚠️  tsx not found, but npx will download it automatically when needed"
+                echo "   💡 To install globally: npm install -g tsx"
+            fi
+        else
+            echo "   ⚠️  tsx not found, but npx will download it automatically when needed"
+            echo "   💡 To install globally: npm install -g tsx"
+        fi
     fi
 else
     echo "   ❌ npx not installed"
