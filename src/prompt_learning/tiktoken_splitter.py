@@ -18,7 +18,7 @@ class TiktokenSplitter:
     """Split dataframes using tiktoken for accurate token counting.
 
     Args:
-        model: The model to use for tokenization (default: gpt-4o)
+        model: The model to use for tokenization (default: gpt-5)
 
     Methods:
         get_batch_dataframes: Generate batches of dataframes that fit within the context window
@@ -43,11 +43,11 @@ class TiktokenSplitter:
 
         Args:
             model: The model to use for tokenization. 
-                   If None, reads from TIKTOKEN_DEFAULT_MODEL env var or defaults to "gpt-4o"
+                   If None, reads from TIKTOKEN_DEFAULT_MODEL env var or defaults to "gpt-5"
         """
         # If model not provided, read from environment variable or use default
         if model is None:
-            model = os.getenv("TIKTOKEN_DEFAULT_MODEL", "gpt-4o")
+            model = os.getenv("TIKTOKEN_DEFAULT_MODEL", "gpt-5")
         
         # Model mapping logic
         if model.startswith("o3"):
