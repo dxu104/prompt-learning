@@ -5,6 +5,7 @@ Tiktoken-based Dataframe Splitter
 Uses tiktoken for accurate token counting to split dataframes into batches
 that fit within LLM context windows.
 """
+import os
 from typing import List, Tuple
 
 import pandas as pd
@@ -36,17 +37,23 @@ class TiktokenSplitter:
     ```
     """
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = None):
         """
         Initialize splitter with tiktoken encoder.
 
         Args:
-            model: The model to use for tokenization (default: gpt-4o)
+            model: The model to use for tokenization. 
+                   If None, reads from TIKTOKEN_DEFAULT_MODEL env var or defaults to "gpt-4o"
         """
+        # If model not provided, read from environment variable or use default
+        if model is None:
+            model = os.getenv("TIKTOKEN_DEFAULT_MODEL", "gpt-4o")
+        
+        # Model mapping logic
         if model.startswith("o3"):
             model = "o3"
         if model.startswith("gpt-5"):
-            model = "gpt-4o"
+            model = "gpt-4o"  # gpt-5 maps to gpt-4o for tokenization (tiktoken compatibility)
         if model.startswith("gpt-4.1"):
             model = "gpt-4"
         if model not in SUPPORTED_MODELS:
