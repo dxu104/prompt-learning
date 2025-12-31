@@ -15,10 +15,10 @@ from constants import CLINE_PROMPT
 import pandas as pd
 
 
-LOOPS = 5
-TRAIN_SIZE = 1
-TEST_SIZE = 1
-WORKERS = 52
+LOOPS = 1      # 最小化测试：1 个循环
+TRAIN_SIZE = 1 # 最小化测试：1 个训练实例
+TEST_SIZE = 1  # 最小化测试：1 个测试实例
+WORKERS = 4    # 最小化测试：4 个并行工作进程（根据机器性能可调整）
 
 os.environ["CLINE_DISABLE_TERMINAL_REUSE"] = "1"
 os.environ["CLINE_DEFAULT_TERMINAL_PROFILE"] = "bash"
