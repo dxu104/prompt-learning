@@ -33,11 +33,15 @@ apt update
 
 echo ""
 echo "5. Installing Python 3.12 and venv..."
-apt install -y python3.12 python3.12-venv python3.12-dev python3.12-distutils
+apt install -y python3.12 python3.12-venv python3.12-dev
 
 echo ""
 echo "6. Installing pip for Python 3.12..."
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
+# Try to install pip using ensurepip first (built-in)
+python3.12 -m ensurepip --upgrade 2>/dev/null || {
+    echo "   ensurepip not available, using get-pip.py..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
+}
 
 echo ""
 echo "=========================================="
