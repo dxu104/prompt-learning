@@ -43,24 +43,38 @@ def ensure_extension_symlink(cline_repo: Path) -> None:
 
 def wait_for_grpc_ready(host: str, port: int, timeout_s: int = 60) -> None:
     start = time.time()
+    grpcurl_available = shutil_which("grpcurl") is not None
+    last_error = None
+    
     while time.time() - start < timeout_s:
         if is_port_open(host, port):
             # As a stronger check, try grpcurl list if available
-            if shutil_which("grpcurl") is not None:
+            if grpcurl_available:
                 try:
-                    subprocess.run(
+                    result = subprocess.run(
                         ["grpcurl", "-plaintext", f"{host}:{port}", "list"],
                         check=True,
                         stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        timeout=5,
                     )
+                    # If grpcurl succeeds, server is ready
                     return
-                except subprocess.CalledProcessError:
-                    pass
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                    last_error = str(e)
+                    # Port is open but grpcurl failed, wait a bit more
+                    time.sleep(1)
+                    continue
             else:
+                # Port is open and grpcurl not available, assume ready
                 return
         time.sleep(0.5)
-    raise TimeoutError(f"gRPC server not ready at {host}:{port} after {timeout_s}s")
+    
+    # Provide more detailed error message
+    error_msg = f"gRPC server not ready at {host}:{port} after {timeout_s}s"
+    if last_error:
+        error_msg += f" (last grpcurl error: {last_error})"
+    raise TimeoutError(error_msg)
 
 
 def shutil_which(cmd: str) -> str | None:
@@ -334,7 +348,8 @@ def start_cline_server_if_needed(
     proc = subprocess.Popen(
         cmd.split(), cwd=str(cline_repo), env=env, stdout=logf, stderr=subprocess.STDOUT
     )
-    wait_for_grpc_ready(host, proto_port, timeout_s=90)
+    # Give server more time to start (especially on slower systems)
+    wait_for_grpc_ready(host, proto_port, timeout_s=120)
     print(f"[INFO] Starting standalone server; log: {log_path}", file=sys.stderr)
     try:
         logf.flush()
