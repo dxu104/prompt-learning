@@ -153,7 +153,7 @@ try:
     
     # Check ripgrep symlink
     rg_link = cline_path / 'dist-standalone/rg'
-    if rg_link.exists() || rg_link.is_symlink():
+    if rg_link.exists() or rg_link.is_symlink():
         print(f'   ✅ ripgrep symlink exists')
     else:
         print(f'   ⚠️  ripgrep symlink does not exist')
