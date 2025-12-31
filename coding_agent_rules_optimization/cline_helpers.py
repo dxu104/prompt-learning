@@ -354,25 +354,38 @@ def start_cline_server_if_needed(
     )
     # Give server more time to start (especially on slower systems)
     # Also check if process is still running
-    time.sleep(2)  # Give process a moment to start
+    time.sleep(3)  # Give process more time to start and write errors
     if proc.poll() is not None:
         # Process already exited, read log to see why
+        # Close the file handle first to ensure all data is flushed
         try:
             logf.flush()
-            logf.seek(0)
-            log_content = logf.read()
             logf.close()
+        except Exception:
+            pass
+        
+        # Wait a bit more for file system to sync
+        time.sleep(0.5)
+        
+        # Read log file directly from disk
+        log_content = ""
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                log_content = f.read()
         except Exception as e:
-            # If we can't read the log file, try reading it directly from disk
-            try:
-                with open(log_path, "r") as f:
-                    log_content = f.read()
-            except Exception:
-                log_content = f"Could not read log file: {e}"
-        raise RuntimeError(
-            f"Server process exited immediately with code {proc.returncode}. "
-            f"Log: {log_content[-1000:]}"  # Last 1000 chars
-        )
+            log_content = f"Could not read log file: {e}"
+        
+        # If log is empty or too short, try reading stderr from process
+        if len(log_content.strip()) < 50:
+            log_content = f"Log file appears empty or incomplete. Return code: {proc.returncode}"
+        
+        # Show more context (last 2000 chars instead of 1000)
+        error_msg = f"Server process exited immediately with code {proc.returncode}.\n"
+        error_msg += f"Command: {cmd}\n"
+        error_msg += f"Working directory: {cline_repo}\n"
+        error_msg += f"Log file: {log_path}\n"
+        error_msg += f"Last 2000 chars of log:\n{log_content[-2000:]}"
+        raise RuntimeError(error_msg)
     wait_for_grpc_ready(host, proto_port, timeout_s=120)
     try:
         logf.flush()
